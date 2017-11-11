@@ -247,7 +247,7 @@ get_fieldType_analyzerType_filters_externallists <- function(schema, fieldtype_n
 
 
 # this function helps testing functions of constructing configuration tables:
-test_load <- function(config, schema){
+test_load <- function(config=config_xml, schema=schema_xml){
   rhs <- get_requestHandlers(config)
   
   rhf_t <- get_requestHandler_fields_table(config, rhs)
@@ -255,5 +255,7 @@ test_load <- function(config, schema){
   fft_t <- get_field_fieldTypes_table(schema, rhf_t$fields)
 
   ftatf_t <- get_fieldType_analyzerType_filters_externallists(schema, fft_t$fieldTypes)
+  
+  return(ftatf_t)
 }
 

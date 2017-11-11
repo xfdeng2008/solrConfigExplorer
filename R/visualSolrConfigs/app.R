@@ -8,6 +8,10 @@
 #
 
 library(shiny)
+library(collapsibleTree)
+
+src_file_name <- "loadConfigs.R"
+source(src_file_name)
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
@@ -18,16 +22,12 @@ ui <- fluidPage(
    # Sidebar with a slider input for number of bins 
    sidebarLayout(
       sidebarPanel(
-         sliderInput("bins",
-                     "Number of bins:",
-                     min = 1,
-                     max = 50,
-                     value = 30)
+
       ),
       
       # Show a plot of the generated distribution
       mainPanel(
-         plotOutput("distPlot")
+        collapsibleTreeOutput("conftree")
       )
    )
 )
@@ -35,13 +35,13 @@ ui <- fluidPage(
 # Define server logic required to draw a histogram
 server <- function(input, output) {
    
-   output$distPlot <- renderPlot({
-      # generate bins based on input$bins from ui.R
-      x    <- faithful[, 2] 
-      bins <- seq(min(x), max(x), length.out = input$bins + 1)
-      
-      # draw the histogram with the specified number of bins
-      hist(x, breaks = bins, col = 'darkgray', border = 'white')
+   output$conftree <- renderCollapsibleTree({
+     collapsibleTree(
+       test_load(),
+       hierarchy = c("fieldTypes","class","analyzer_types","tokenizer_filters","external_files"),
+       #attribute = "filter_source"
+       collapsed = TRUE
+     )
    })
 }
 
