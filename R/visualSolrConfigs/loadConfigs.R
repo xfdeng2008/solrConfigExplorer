@@ -7,6 +7,7 @@ library(dplyr)
 
 
 # load configuration xml files
+# support a url from a soler server to be Added
 load_xml <- function(base_conf_dir = "C:/Solrhome/solr-6.6.1/server/solr/conf", xml_file_name){
   file_path <- file.path(base_conf_dir, xml_file_name)
   return(read_xml(file_path))
@@ -98,4 +99,161 @@ get_field_fieldTypes_table <- function(schema, field_names){
   return(fieldtypes_tbl)
 }
 
+
+# This function obtains all analyzer filers/charFilters/tokenizers' with any attribute 
+# that contains a .txt file. It returns a tibble:
+# {analyzer_types, tokenizer_filters, filter_source, external_files}, or NA if there is no external .txt
+#
+# if the analyzer_type is set (as a string, didn't check the type), then xpath matches under index/query analyzers
+# else xpath matches under a general analyzer node (regardless of its type attribute) 
+get_filter_txt_table <- function(schema, fieldtype_name, analyzer_type=NA){
+
+  # find all filter/tokenizer/charFilter class names that contains a ".txt" in any attribute
+  # assume one filter/tokenizer/charFilter can only refer to one external .txt file
+  if(is.na(analyzer_type)){
+    xpath_txt <- paste0(".//fieldType[@name='", fieldtype_name, "']/analyzer//@*[contains(., '.txt')]", collapse="")
+  } else {
+    xpath_txt <- paste0(".//fieldType[@name='", fieldtype_name, "']/analyzer[@type='", analyzer_type,"']//@*[contains(., '.txt')]", collapse="")
+  }
+  
+  external_txts <- schema %>% xml_find_all(xpath_txt)
+  
+  # verify there exists a filter that contains an external txt file:
+  exists_external_txt<- !(length(xml_type(external_txts)) == 0)
+  
+  if(exists_external_txt){
+    parent_nodes <- xml_parent(external_txts)
+    source <- as.character(parent_nodes)
+    txts <- external_txts %>% xml_text()
+    filters_classes_with_txt <- parent_nodes %>% xml_attr(attr="class") 
+    filters_with_txt <- str_match(filters_classes_with_txt, pattern = "solr.([a-zA-Z]+)")[,2]
+    return(tibble(tokenizer_filters=filters_with_txt, filter_source=source, external_files=txts))
+  } else{
+    return(NA)
+  }
+}
+
+# return a tibble of {fieldTypes, class, analyzer_types, tokenizer_filters, filter_source, external_files} for 
+# each fieldType
+# tokenizers, filters, external file names
+get_filters_externalfiles <- function(fieldtype_name, schema){
+  # first of all, obtain the Solr class of the fieldType:
+  class_xpath <- paste0(".//fieldType[@name='", fieldtype_name, "']/@class")
+  class <- schema %>%
+    xml_find_all(class_xpath) %>%
+    xml_text()
+  
+  # needs to verify whether or not the fieldtype has a index/query analyzer:
+  # (1) fieldType does not have any analyzer: 
+  test_xpath <- paste0(".//fieldType[@name='", fieldtype_name, "']/analyzer") 
+  test_node <- xml_type(xml_find_all(schema, test_xpath))
+  if(length(test_node) == 0){
+    return(tibble(fieldTypes = fieldtype_name, class=class, analyzer_types = NA, tokenizer_filters = NA, external_files = NA))
+  }
+  
+  # (2) fieldType only have one analyzer (regardless of index or query) without any type
+  test_xpath <- paste0(".//fieldType[@name='", fieldtype_name, "']/analyzer/@type") 
+  test_node <- xml_type(xml_find_all(schema, test_xpath))
+  if(length(test_node) == 0){
+    xpath_analyzer_filters <- paste0(".//fieldType[@name='", fieldtype_name, "']/analyzer//@class", collapse="")    
+    nodes <- schema %>% xml_find_all(xpath_analyzer_filters)
+    source <- as.character(xml_parent(nodes))
+    analyzer_filter_classes <- nodes %>% xml_text()
+    analyzer_filters <- str_match(analyzer_filter_classes, pattern = "solr.([a-zA-Z]+)")[,2]  
+    analyzer_filters_tbl <- tibble(fieldTypes = fieldtype_name, class=class, analyzer_types = "all", tokenizer_filters = analyzer_filters, filter_source=source)
+    
+    # get the external lists that a filter uses:
+    # find all filter/tokenizer/charFilter class names that contains a ".txt" in any attribute
+    # assume one filter/tokenizer/charFilter can only refer to one external .txt file
+    filters_txt_tbl <- get_filter_txt_table(schema, fieldtype_name, NA)
+    # when there is no external .txt files:
+    if(1==length(filters_txt_tbl) && is.na(filters_txt_tbl)){
+      return(add_column(analyzer_filters_tbl, external_files = NA))
+    } else {
+      return(analyzer_filters_tbl %>% left_join(filters_txt_tbl, by = c("tokenizer_filters", "filter_source")))
+    }
+  }
+
+  # (3) if thre is any index analyzer:    
+  test_xpath <- paste0(".//fieldType[@name='", fieldtype_name, "']/analyzer[@type='index']", collapse="")
+  test_node <- xml_type(xml_find_all(schema, test_xpath))
+  has_index_analyzer <- !(length(test_node) == 0)
+  
+  # For index analyzers': get tokennizer and filters' names:
+  if(has_index_analyzer){
+    index_xpath <- paste0(".//fieldType[@name='", fieldtype_name, "']/analyzer[@type='index']//@class", collapse="")
+    nodes <- schema %>% xml_find_all(index_xpath)
+    source <- as.character(xml_parent(nodes))    
+    index_filter_classes <- nodes %>% xml_text()
+  
+    # extract the tokenizer and filter class names for index analyzers:
+    index_filters <- str_match(index_filter_classes, pattern = "solr.([a-zA-Z]+)")[,2] #%>%
+    index_filters_tbl <- tibble(fieldTypes = fieldtype_name, class=class, analyzer_types = "index", tokenizer_filters = index_filters, filter_source=source)
+    # otain filters with external .txt files:
+    filters_txt_tbl <- get_filter_txt_table(schema, fieldtype_name, "index")
+    # when there is no external .txt files:
+    if(1==length(filters_txt_tbl) && is.na(filters_txt_tbl)){
+      index_filters_txt_tbl <- add_column(index_filters_tbl, external_files = NA)
+    } else {
+    index_filters_txt_tbl <- index_filters_tbl %>% left_join(filters_txt_tbl, by = c("tokenizer_filters", "filter_source"))
+    }
+  } else{
+    index_filters_txt_tbl <- tibble()
+  }
+  
+  # (4) if there is a query analyzer:
+  test_xpath <- paste0(".//fieldType[@name='", fieldtype_name, "']/analyzer[@type='query']", collapse="")
+  test_node <- xml_type(xml_find_all(schema, test_xpath))
+  has_query_analyzer <- !(length(test_node) == 0)
+  
+  # For query analyzers:
+  if(has_query_analyzer){
+    query_xpath <- paste0(".//fieldType[@name='", fieldtype_name, "']/analyzer[@type='query']//@class", collapse="")
+    nodes <- schema %>% xml_find_all(query_xpath)
+    source <- as.character(xml_parent(nodes))  
+    query_filter_classes <- nodes %>% xml_text()
+    query_filters <- str_match(query_filter_classes, pattern = "solr.([a-zA-Z]+)")[,2]
+    query_filters_tbl <- tibble(fieldTypes = fieldtype_name, class=class, analyzer_types = "query", tokenizer_filters = query_filters, filter_source=source)
+    # otain filters with external .txt files:
+    filters_txt_tbl <- get_filter_txt_table(schema, fieldtype_name, "query")
+    # when there is no external .txt files:
+    if(1==length(filters_txt_tbl) &&is.na(filters_txt_tbl)){
+      query_filters_txt_tbl <- add_column(query_filters_tbl, external_files = NA)
+    } else {
+      query_filters_txt_tbl <- query_filters_tbl %>% left_join(filters_txt_tbl, by = c("tokenizer_filters", "filter_source"))
+    }
+  } else{
+    query_filters_txt_tbl <- tibble()
+  }
+  
+  # cobine index and query analyzers' tokenizers and filters:
+  # an empty tibble() does not affect the result of row binding
+  return(bind_rows(index_filters_txt_tbl, query_filters_txt_tbl))
+}
+
+# return a table of {fieldTypes, class, analyzer_types, tokenizer_filters, external_files}
+# fieldTypes: a set of fieldType names: NAs and duplicated values are allowed
+# note: FlattenGraphFilterFactory is filtered out
+get_fieldType_analyzerType_filters_externallists <- function(schema, fieldtype_names){
+  
+  # remove duplicated fieldType names and NA values:
+  my_fieldtypes_names <- fieldtype_names %>% unique() %>% na.omit()
+  
+  tbl <- map(my_fieldtypes_names, get_filters_externalfiles, schema) %>% 
+    bind_rows() %>% filter(tokenizer_filters!="FlattenGraphFilterFactory") %>% arrange(fieldTypes)
+  
+  return(tbl)
+}
+
+
+# this function helps testing functions of constructing configuration tables:
+test_load <- function(config, schema){
+  rhs <- get_requestHandlers(config)
+  
+  rhf_t <- get_requestHandler_fields_table(config, rhs)
+  
+  fft_t <- get_field_fieldTypes_table(schema, rhf_t$fields)
+
+  ftatf_t <- get_fieldType_analyzerType_filters_externallists(schema, fft_t$fieldTypes)
+}
 
