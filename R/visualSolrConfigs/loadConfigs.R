@@ -8,20 +8,22 @@ library(dplyr)
 
 # load configuration xml files
 # support a url from a soler server to be Added
-load_xml <- function(base_conf_dir = "C:/Solrhome/solr-6.6.1/server/solr/conf", xml_file_name){
+load_xml <- function(base_conf_dir, xml_file_name){
   file_path <- file.path(base_conf_dir, xml_file_name)
   return(read_xml(file_path))
 }
 
-
+# ##########################################################################
+# code snipet for debuging only: 
 # global xml variables: 
 # load solrconfig.xml and schema.xml from the solr conf directory
-config_xml <- load_xml(xml_file_name="solrconfig.xml")
-schema_xml <- load_xml(xml_file_name="schema.xml")
+# config_xml <- load_xml(xml_file_name="solrconfig.xml")
+# schema_xml <- load_xml(xml_file_name="schema.xml")
 
-# debug:
-config <- config_xml
-schema <- schema_xml
+# config <- config_xml
+# schema <- schema_xml
+# ##########################################################################
+
 
 # get a char vector of important reuqestHandler names
 get_requestHandlers <- function(config){
@@ -247,15 +249,35 @@ get_fieldType_analyzerType_filters_externallists <- function(schema, fieldtype_n
 
 
 # this function helps testing functions of constructing configuration tables:
-test_load <- function(config=config_xml, schema=schema_xml){
+test_load <- function(conf_directory="C:/Solrhome/solr-6.6.1/server/solr/conf"){
+  
+  # obtain the xml files:
+  # load solrconfig.xml and schema.xml from the solr conf directory
+  config <- load_xml(conf_directory, xml_file_name="solrconfig.xml")
+  schema <- load_xml(conf_directory, xml_file_name="schema.xml")
+  
+  # a set of requestHandler names
   rhs <- get_requestHandlers(config)
   
-  rhf_t <- get_requestHandler_fields_table(config, rhs)
+  # a table of requestHandler and fields relationships (qf, pf and fl)
+  rh_f <- get_requestHandler_fields_table(config, rhs)
   
-  fft_t <- get_field_fieldTypes_table(schema, rhf_t$fields)
+  # a table of fields and fieldTypes relationships
+  f_ft <- get_field_fieldTypes_table(schema, rh_f$fields)
 
-  ftatf_t <- get_fieldType_analyzerType_filters_externallists(schema, fft_t$fieldTypes)
+  # a table of details on fieldTypes (analyzers, filters and external txt files)
+  ft_at_f_txt <- get_fieldType_analyzerType_filters_externallists(schema, f_ft$fieldTypes)
   
-  return(ftatf_t)
+  # a combined big table of configurations from the two xml files:
+  SolrConfigs <- rh_f %>%
+    left_join(f_ft, by = "fields") %>%
+    left_join(ft_at_f_txt, by="fieldTypes")
+    
+  
+  
+  # SolrConfigs <- list(rhs=rhs, rh_f=rh_f, f_ft=f_ft, ft_at_f_txt=ft_at_f_txt)
+  # to be decided
+  
+  return(SolrConfigs)
 }
 

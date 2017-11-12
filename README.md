@@ -1,4 +1,4 @@
-# solrConfigExplorer
+# Solr Configurations Explorer
 As your serach project goes on, the Solr configuration files, i.e., solrconfig.xml and schema.xml, become complicated and difficult to maintain (especially for new employees). There is a need to start an opensource project that visualizes the relationship between configurations and schemas interactively. 
 
 Here is some senarios that you may need this tool. Your co-works or collegues just commited a code change. You may find difficulties in reviewing impacts of this change on your search application. A developing GUI with advanced search features may help. However, because of current Solr configuration settings, you might still need to search between the solrconfig.xml and schema.xml back and forth for several times. For example, think about how you can find which requestHandlers, fields and fieldtypes that will be impact by the change in a synonyms list? In this case, you need to search from bottom to top between the two xml files (synonyms files -> synonyms filters -> fieldTypes -> fields -> requestHandlers). 
