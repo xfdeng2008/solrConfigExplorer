@@ -1,6 +1,6 @@
 library(shiny)
 library(collapsibleTree)
-library("DT")
+library(DT)
 
 
 src_file_name <- "loadConfigs.R"
