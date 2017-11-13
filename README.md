@@ -9,6 +9,6 @@ I started this simple project by trying to visualize relationship between Solr c
 
 The project uses R programming language and R Shiny. 
 
-The collapsible tree package in R is the main visulization tool. 
+The collapsible tree package in R is the main visulization tool for this project. Source of collapsible tree: https://github.com/AdeelK93/collapsibleTree
 
 Your are more than welcome to add new features to this project, poingting out mistakes, and fixing bugs. 

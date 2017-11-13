@@ -249,6 +249,7 @@ get_fieldType_analyzerType_filters_externallists <- function(schema, fieldtype_n
 
 
 # this function helps testing functions of constructing configuration tables:
+# set local Solr configuration conf folder
 test_load <- function(conf_directory="C:/Solrhome/solr-6.6.1/server/solr/conf"){
   
   # obtain the xml files:
@@ -273,10 +274,45 @@ test_load <- function(conf_directory="C:/Solrhome/solr-6.6.1/server/solr/conf"){
     left_join(f_ft, by = "fields") %>%
     left_join(ft_at_f_txt, by="fieldTypes")
     
-  
-  
   # SolrConfigs <- list(rhs=rhs, rh_f=rh_f, f_ft=f_ft, ft_at_f_txt=ft_at_f_txt)
   # to be decided
+  
+  return(SolrConfigs)
+}
+
+get_solr_configurations <- function(solrconfig_xml_file, schema_xml_file, remote){
+  
+  file1 <- solrconfig_xml_file
+  file2 <- schema_xml_file
+  
+  # obtain the remote xml files:
+  if(remote == TRUE){
+    file1 <- url(file1)
+    file2 <- url(file2)
+  } 
+  
+  print(paste0("solrconfig.xml: [", file1, "]"))
+  print(paste0("schema.xml: [", file2, "]"))
+  
+  config <- read_xml(file1)
+  schema <- read_xml(file2)
+  
+  # a set of requestHandler names
+  rhs <- get_requestHandlers(config)
+  
+  # a table of requestHandler and fields relationships (qf, pf and fl)
+  rh_f <- get_requestHandler_fields_table(config, rhs)
+  
+  # a table of fields and fieldTypes relationships
+  f_ft <- get_field_fieldTypes_table(schema, rh_f$fields)
+  
+  # a table of details on fieldTypes (analyzers, filters and external txt files)
+  ft_at_f_txt <- get_fieldType_analyzerType_filters_externallists(schema, f_ft$fieldTypes)
+  
+  # a combined big table of configurations from the two xml files:
+  SolrConfigs <- rh_f %>%
+    left_join(f_ft, by = "fields") %>%
+    left_join(ft_at_f_txt, by="fieldTypes")
   
   return(SolrConfigs)
 }
