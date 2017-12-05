@@ -17,8 +17,8 @@ load_xml <- function(base_conf_dir, xml_file_name){
 # code snipet for debuging only: 
 # global xml variables: 
 # load solrconfig.xml and schema.xml from the solr conf directory
-# config_xml <- load_xml(xml_file_name="solrconfig.xml")
-# schema_xml <- load_xml(xml_file_name="schema.xml")
+# config_xml <- load_xml("C:/Solrhome/solr-6.6.1/server/solr/conf", "solrconfig.xml")
+# schema_xml <- load_xml("C:/Solrhome/solr-6.6.1/server/solr/conf", "schema.xml")
 
 # config <- config_xml
 # schema <- schema_xml
@@ -41,14 +41,14 @@ get_requestHandlers <- function(config){
 get_fields <- function(handler_name, setting, config){
   my_fields <- xml_find_all(config, paste0(".//requestHandler[@name='/", handler_name, "']/lst[@name='defaults']/str[@name='", setting, "']/text()", collapse=""))
   
-  # regular expression for extracting pf anf qf fields:
+  # regular expression for extracting pf and qf fields:
   regex_pattern <- "[\\^0-9.]+\\s*|\\s"
   
   if(length(xml_type(my_fields)) == 0){
     return(tibble(requestHandlers=handler_name, settings=setting, fields=NA))
   } 
   
-  # xml_type: text
+  # xml_type: text, assumes only one element found, i.e., either qf, fl or pf setting
   str_fields <- xml_text(my_fields)[1]
   if(setting=="fl"){
     regex_pattern <- ",\\s*|\\s+"
@@ -57,6 +57,43 @@ get_fields <- function(handler_name, setting, config){
   fields <- fields[fields!=""]
   
   fields_tbl <- tibble(requestHandlers=handler_name, settings=setting, fields=fields)
+  return(fields_tbl)
+}
+
+
+# get fields for the setting: special query parser/sub-queries
+# match_query_parser: special taxonomy query parser inplemented by OSC
+# The function returns a tibble of {requestHandlers, settings, fields}
+get_fields_special_query_parser <- function(handler_name, setting, config){
+ 
+  parser_pattern <- NULL
+  fields_pattern <- NULL
+  fields_tbl <- tibble(requestHandlers=handler_name, settings=setting, fields=NA)
+  
+  if(setting == "match_query_parser"){
+    parser_pattern <- "!match"
+  }
+  
+  # {!match qf=BUS_ENTITY analyze_as=content_processing_entity search_with=term v=$q}
+  my_subquery <- xml_find_all(config, paste0(".//requestHandler[@name='/", handler_name, "']/lst[@name='defaults']/str[contains(., '", parser_pattern, "')]/text()", collapse=""))
+  
+  if(length(xml_type(my_subquery)) == 0){
+    return(fields_tbl)
+  } 
+  
+  # xml_type: text, 
+  # assume only one sub-query of the setting is found, 
+  # in the future: should be able to deal with multiple elements, e.g., multiple {!match} 
+  str_fields <- xml_text(my_subquery)[1]
+
+  # qf field of the special query parser:
+  if(setting == "match_query_parser") {
+    fields_pattern <- "qf=([a-zA-Z\\_]+)"
+    qf.field <- str_extract(str_fields, fields_pattern)[[1]]
+    fields <- str_split(qf.field, "=")[[1]][2]
+    fields_tbl <- tibble(requestHandlers=handler_name, settings=setting, fields=as.vector(fields))
+  } 
+  
   return(fields_tbl)
 }
 
@@ -74,6 +111,9 @@ get_requestHandler_fields_table <- function(config, request_handler_names){
   
   # A list of fl fields for each requestHandler:
   fl_fields<- map(request_handler_names, get_fields, "fl", config)
+  
+  # A list of bq fields for each requestHandler: for match query parser only
+  fl_fields<- map(request_handler_names, get_fields_special_query_parser, "match_query_parser", config)
   
   # combine the three lists into a table and sort by requestHandler names asc
   return(bind_rows(qf_fields, pf_fields, fl_fields) %>% arrange(requestHandlers))
@@ -300,7 +340,7 @@ get_solr_configurations <- function(solrconfig_xml_file, schema_xml_file, remote
   # a set of requestHandler names
   rhs <- get_requestHandlers(config)
   
-  # a table of requestHandler and fields relationships (qf, pf and fl)
+  # a table of requestHandler and fields relationships (qf, pf, fl and bq)
   rh_f <- get_requestHandler_fields_table(config, rhs)
   
   # a table of fields and fieldTypes relationships
