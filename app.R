@@ -33,8 +33,8 @@ if (interactive()) {
           tabPanel("Config files", 
                    
                    # remote urls: 
-                   textInput("solrconfig_xml_url", "Paste your solrconfig.xml", ""),      
-                   textInput("schema_xml_url", "Paste your solrconfig.xml", ""),
+                   textInput("solrconfig_xml_url", "Paste your solrconfig.xml url", ""),      
+                   textInput("schema_xml_url", "Paste your solrconfig.xml url", ""),
                    actionButton("btn_get", "Get remote xmls"), 
 
                    # Horizontal line ----
@@ -59,7 +59,7 @@ if (interactive()) {
                    selectizeInput("hierarchy","Configuration tree hierarchy",
                                   # or use names(SolrConfigs) for the choices
                                   choices = c("requestHandlers (select)"="requestHandlers", 
-                                              "settings (qf,pf,fl)"="settings", 
+                                              "settings (qf,pf,fl,match_query_parser)"="settings", 
                                               "fields"="fields", 
                                               "fieldTypes"="fieldTypes", 
                                               "Java class (solr.TextField)"="class", 
@@ -92,7 +92,8 @@ if (interactive()) {
                    checkboxGroupInput("grp_settings", "Explore fields in",
                                       c("Query fields (qf)" = "qf",
                                         "Phrase fields (pf)" = "pf",
-                                        "Display fields (fl)" = "fl"),
+                                        "Display fields (fl)" = "fl",
+                                        "Taxonomy field (match query parser)" = "match_query_parser"),
                                       selected = "qf"),
                    
                    textInput("handler", "Search a requestHandler", ""),
@@ -173,7 +174,7 @@ if (interactive()) {
         )
         
         validate(
-          need(input$grp_settings, "Check at least one from {qf, pf, fl}!")
+          need(input$grp_settings, "Check at least one from {qf, pf, fl, match_query_parser}!")
         )
       })
     })  
@@ -208,8 +209,8 @@ if (interactive()) {
           filter(str_detect(external_files, regex(input$externaltxt, ignore_case = TRUE)))
       }
       
-      # decide fields in {qf, pf, fl}
-      if(length(input$grp_settings) < 3){
+      # decide fields in {qf, pf, fl, match_query_parser}
+      if(length(input$grp_settings) < 4){
         configs <- configs %>% filter(settings %in% input$grp_settings)
       } 
       
