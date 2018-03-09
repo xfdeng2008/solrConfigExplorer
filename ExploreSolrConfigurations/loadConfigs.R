@@ -1,6 +1,6 @@
 library(xml2)
-library(psych)
-library(tidyverse)
+#library(psych)
+#library(tidyverse)
 library(purrr)
 library(stringr)
 library(dplyr)
