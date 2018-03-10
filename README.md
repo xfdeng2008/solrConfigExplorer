@@ -7,7 +7,7 @@ In an opposite direction, suppose there are multiple synonyms lists and multiple
 
 I started this simple project by trying to visualize relationship between Solr configurations. So far, the project only visualize simple relationship between requestHandlers in solrconfig.xml and type definitions in schema.xml
 
-The project uses R programming language and R Shiny, please visit ( https://xiaofeideng.shinyapps.io/ExploreSolrConfigurations/)[https://xiaofeideng.shinyapps.io/ExploreSolrConfigurations/] if interested.
+The project uses R programming language and R Shiny, please visit https://xiaofeideng.shinyapps.io/ExploreSolrConfigurations/ if interested.
 
 The collapsible tree package in R is the main visulization tool for this project. Source of collapsible tree: https://github.com/AdeelK93/collapsibleTree
 
